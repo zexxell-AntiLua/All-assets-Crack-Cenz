@@ -1,0 +1,68 @@
+-- ========================================================
+-- ADVANCED ENVIRONMENT EMULATOR (STABILIZATION VER)
+-- Bypassed By @zexxell
+-- ========================================================
+
+local __real_require = require
+local __real_getfenv = getfenv
+local __real_setfenv = setfenv
+local __real_typeof  = typeof or type
+
+-- 1. Penyamaran Objek Hasil Require agar Mendukung Metamethod Komplit
+local fakeParcel = {}
+setmetatable(fakeParcel, {
+    __index = function(t, k)
+        -- Mengembalikan fungsi serbaguna yang fleksibel terhadap pemanggilan berantai
+        return function(...) 
+            return true, nil 
+        end
+    end,
+    __call = function(...)
+        -- Menangani jika objek dipanggil langsung sebagai fungsi
+        return true, nil
+    end,
+    __tostring = function()
+        -- Menyamar sebagai tipe objek standar Roblox jika dipaksa konversi ke string
+        return "Connection"
+    end,
+    __metatable = "The metatable is locked" -- Mengunci metatable dari getmetatable() bawaan obfuscator
+})
+
+-- 2. Pembentukan Lingkungan Palsu Dinamis
+local __fake_env = {}
+
+__fake_env.require = function(id)
+    if type(id) == "number" then
+        return fakeParcel
+    end
+    return __real_require(id)
+end
+
+__fake_env.getfenv = function(lvl)
+    -- Memperbaiki error call-stack: Jika obfuscator meminta level spesifik, berikan real fenv
+    if lvl == 0 or lvl == 2 then
+        return __real_getfenv(lvl)
+    end
+    return __fake_env
+end
+
+-- Spoofing fungsi typeof untuk mengelabui pengecekan tipe data obfuscator
+__fake_env.typeof = function(obj)
+    if obj == fakeParcel then
+        return "Instance" -- Mengaku sebagai Instance Roblox asli jika diperiksa typeof()
+    end
+    return __real_typeof(obj)
+end
+
+-- Menyalin fenv asli ke fenv baru agar fungsi bawaan global lainnya tidak hilang
+setmetatable(__fake_env, {
+    __index = function(t, k)
+        return __real_getfenv(0)[k]
+    end,
+    __newindex = function(t, k, v)
+        __real_getfenv(0)[k] = v
+    end
+})
+
+-- 3. Eksekusi Penguncian Lingkungan
+__real_setfenv(1, __fake_env)
